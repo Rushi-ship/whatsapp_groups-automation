@@ -1,0 +1,383 @@
+{% extends "base.html" %}
+
+{% block content %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhatsApp Bulk Messenger</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
+    <style>
+        body {
+            padding: 20px;
+            background-color: #f8f9fa;
+        }
+        .container {
+            max-width: 800px;
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        .btn-primary {
+            background-color: #25D366;
+            border-color: #25D366;
+        }
+        .btn-primary:hover {
+            background-color: #128C7E;
+            border-color: #128C7E;
+        }
+        .btn:disabled {
+            background-color: #cccccc;
+            border-color: #cccccc;
+        }
+        #toast-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+        }
+        .file-upload-wrapper {
+            position: relative;
+            margin-bottom: 20px;
+        }
+        .file-name {
+            margin-top: 10px;
+            font-size: 0.9em;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="mb-4">WhatsApp Bulk Messenger</h1>
+        
+        <!-- Message Type Selection -->
+        <div class="mb-4">
+            <label class="form-label">Message Type</label>
+            <div class="form-check">
+                <input class="form-check-input" type="radio" name="messageType" id="stockRecommendations" value="stock" checked>
+                <label class="form-check-label" for="stockRecommendations">Stock Recommendations</label>
+            </div>
+            <div class="form-check">
+                <input class="form-check-input" type="radio" name="messageType" id="genericMessage" value="generic">
+                <label class="form-check-label" for="genericMessage">Generic Message</label>
+            </div>
+        </div>
+
+        <!-- Stock Recommendations Section -->
+        <div id="stockSection">
+            <form id="uploadForm" class="mb-4">
+                <div class="file-upload-wrapper">
+                    <label for="file" class="form-label">Upload Excel File</label>
+                    <input type="file" class="form-control" id="file" accept=".xlsx,.xls" required>
+                    <div class="file-name" id="fileName"></div>
+                </div>
+                <button type="submit" class="btn btn-primary" id="uploadBtn">Upload</button>
+            </form>
+
+            <form id="messageForm" class="mb-4">
+                <div class="mb-3">
+                    <label class="form-label">Message Format</label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="format" id="simpleFormat" value="simple" checked>
+                        <label class="form-check-label" for="simpleFormat">Simple Text</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="format" id="tableFormat" value="table">
+                        <label class="form-check-label" for="tableFormat">Table Format</label>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary" id="sendBtn" disabled>Send Messages</button>
+            </form>
+        </div>
+
+        <!-- Generic Message Section -->
+        <div id="genericSection" style="display: none;">
+            <form id="genericUploadForm" class="mb-4">
+                <div class="file-upload-wrapper">
+                    <label for="genericFile" class="form-label">Upload Groups Excel File</label>
+                    <small class="form-text text-muted d-block mb-2">Excel file should contain only one column named 'group_name'</small>
+                    <input type="file" class="form-control" id="genericFile" accept=".xlsx,.xls" required>
+                    <div class="file-name" id="genericFileName"></div>
+                </div>
+                <button type="submit" class="btn btn-primary" id="genericUploadBtn">Upload</button>
+            </form>
+
+            <form id="genericMessageForm" class="mb-4">
+                <div class="mb-3">
+                    <label for="messageText" class="form-label">Message</label>
+                    <small class="form-text text-muted d-block mb-2">Use *text* for bold formatting</small>
+                    <textarea class="form-control" id="messageText" rows="6" placeholder="Enter your message here..." required></textarea>
+                    <div class="mt-2">
+                        <small class="text-muted">Characters: <span id="charCount">0</span></small>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Message Preview</label>
+                    <div class="border rounded p-3 bg-light" id="messagePreview"></div>
+                </div>
+                <button type="submit" class="btn btn-primary" id="genericSendBtn" disabled>Send Messages</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+    <script>
+        // Configure toastr options
+        toastr.options = {
+            positionClass: "toast-bottom-right",
+            timeOut: 2000,
+            closeButton: false,
+            progressBar: true,
+            preventDuplicates: true
+        };
+
+        let fileUploaded = false;
+        let genericFileUploaded = false;
+
+        $(document).ready(function() {
+            // Message Type Switch
+            $('input[name="messageType"]').on('change', function() {
+                const isGeneric = $(this).val() === 'generic';
+                $('#stockSection').toggle(!isGeneric);
+                $('#genericSection').toggle(isGeneric);
+                
+                // Reset states
+                fileUploaded = false;
+                genericFileUploaded = false;
+                $('#sendBtn').prop('disabled', true);
+                $('#genericSendBtn').prop('disabled', true);
+                $('#file').val('');
+                $('#genericFile').val('');
+                $('#fileName').text('');
+                $('#genericFileName').text('');
+                $('#messageText').val('');
+                $('#messagePreview').html('');
+                $('#charCount').text('0');
+            });
+
+            // Message Preview
+            $('#messageText').on('input', function() {
+                const text = $(this).val();
+                $('#charCount').text(text.length);
+                
+                // Convert *text* to <strong>text</strong> for preview
+                let preview = text.replace(/\*([^*]+)\*/g, '<strong>$1</strong>');
+                // Convert newlines to <br>
+                preview = preview.replace(/\n/g, '<br>');
+                $('#messagePreview').html(preview);
+            });
+
+            // Generic File Upload
+            $('#genericFile').on('change', function() {
+                const fileName = this.files[0]?.name || 'No file selected';
+                $('#genericFileName').text(fileName);
+                genericFileUploaded = false;
+                $('#genericSendBtn').prop('disabled', true);
+                $('#genericUploadBtn').prop('disabled', false);
+            });
+
+            $('#genericUploadForm').on('submit', function(e) {
+                e.preventDefault();
+                
+                $('#genericUploadBtn').prop('disabled', true);
+                
+                const formData = new FormData();
+                const fileInput = $('#genericFile')[0];
+                
+                if (fileInput.files.length === 0) {
+                    toastr.error('Please select a file first');
+                    $('#genericUploadBtn').prop('disabled', false);
+                    return;
+                }
+                
+                formData.append('file', fileInput.files[0]);
+                formData.append('type', 'generic');
+
+                $.ajax({
+                    url: '/upload',
+                    type: 'POST',
+                    data: formData,
+                    processData: false,
+                    contentType: false,
+                    success: function(response) {
+                        toastr.success('Groups file uploaded successfully');
+                        genericFileUploaded = true;
+                        $('#genericSendBtn').prop('disabled', false);
+                    },
+                    error: function(xhr, status, error) {
+                        let errorMessage = 'Error uploading file';
+                        try {
+                            const response = JSON.parse(xhr.responseText);
+                            errorMessage = response.error || errorMessage;
+                        } catch (e) {
+                            console.error('Error parsing error response:', e);
+                        }
+                        toastr.error(errorMessage);
+                        genericFileUploaded = false;
+                        $('#genericSendBtn').prop('disabled', true);
+                    },
+                    complete: function() {
+                        $('#genericUploadBtn').prop('disabled', false);
+                    }
+                });
+            });
+
+            $('#genericMessageForm').on('submit', function(e) {
+                e.preventDefault();
+                
+                if (!genericFileUploaded) {
+                    toastr.error('Please upload a groups file first');
+                    return;
+                }
+
+                const messageText = $('#messageText').val().trim();
+                if (!messageText) {
+                    toastr.error('Please enter a message');
+                    return;
+                }
+
+                $('#genericSendBtn').prop('disabled', true);
+                $('#genericSendBtn').html('<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Waiting for QR Scan...');
+
+                $.ajax({
+                    url: '/send_messages',
+                    type: 'POST',
+                    data: JSON.stringify({ 
+                        type: 'generic',
+                        message: messageText 
+                    }),
+                    contentType: 'application/json',
+                    success: function(response) {
+                        toastr.success('Messages sent successfully');
+                        // Reset form
+                        genericFileUploaded = false;
+                        $('#genericFile').val('');
+                        $('#genericFileName').text('');
+                        $('#messageText').val('');
+                        $('#messagePreview').html('');
+                        $('#charCount').text('0');
+                    },
+                    error: function(xhr, status, error) {
+                        let errorMessage = 'Error sending messages';
+                        try {
+                            const response = JSON.parse(xhr.responseText);
+                            errorMessage = response.error || errorMessage;
+                        } catch (e) {
+                            console.error('Error parsing error response:', e);
+                        }
+                        toastr.error(errorMessage);
+                    },
+                    complete: function() {
+                        $('#genericSendBtn').prop('disabled', !genericFileUploaded);
+                        $('#genericSendBtn').html('Send Messages');
+                    }
+                });
+            });
+
+            // Show filename when file is selected
+            $('#file').on('change', function() {
+                const fileName = this.files[0]?.name || 'No file selected';
+                $('#fileName').text(fileName);
+                fileUploaded = false;
+                $('#sendBtn').prop('disabled', true);
+                $('#uploadBtn').prop('disabled', false);
+            });
+
+            $('#uploadForm').on('submit', function(e) {
+                e.preventDefault();
+                
+                // Disable upload button during upload
+                $('#uploadBtn').prop('disabled', true);
+                
+                const formData = new FormData();
+                const fileInput = $('#file')[0];
+                
+                if (fileInput.files.length === 0) {
+                    toastr.error('Please select a file first');
+                    $('#uploadBtn').prop('disabled', false);
+                    return;
+                }
+                
+                formData.append('file', fileInput.files[0]);
+
+                $.ajax({
+                    url: '/upload',
+                    type: 'POST',
+                    data: formData,
+                    processData: false,
+                    contentType: false,
+                    success: function(response) {
+                        toastr.success('File uploaded successfully');
+                        fileUploaded = true;
+                        $('#sendBtn').prop('disabled', false);
+                    },
+                    error: function(xhr, status, error) {
+                        let errorMessage = 'Error uploading file';
+                        try {
+                            const response = JSON.parse(xhr.responseText);
+                            errorMessage = response.error || errorMessage;
+                        } catch (e) {
+                            console.error('Error parsing error response:', e);
+                        }
+                        toastr.error(errorMessage);
+                        fileUploaded = false;
+                        $('#sendBtn').prop('disabled', true);
+                    },
+                    complete: function() {
+                        $('#uploadBtn').prop('disabled', false);
+                    }
+                });
+            });
+
+            $('#messageForm').on('submit', function(e) {
+                e.preventDefault();
+                
+                if (!fileUploaded) {
+                    toastr.error('Please upload a file first');
+                    return;
+                }
+
+                // Disable send button during processing
+                $('#sendBtn').prop('disabled', true);
+                $('#sendBtn').html('<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Waiting for QR Scan...');
+
+                const format = $('input[name="format"]:checked').val();
+
+                $.ajax({
+                    url: '/send_messages',
+                    type: 'POST',
+                    data: JSON.stringify({ format: format }),
+                    contentType: 'application/json',
+                    success: function(response) {
+                        toastr.success('Messages sent successfully');
+                        // Reset file upload state
+                        fileUploaded = false;
+                        $('#file').val('');
+                        $('#fileName').text('');
+                    },
+                    error: function(xhr, status, error) {
+                        let errorMessage = 'Error sending messages';
+                        try {
+                            const response = JSON.parse(xhr.responseText);
+                            errorMessage = response.error || errorMessage;
+                        } catch (e) {
+                            console.error('Error parsing error response:', e);
+                        }
+                        toastr.error(errorMessage);
+                    },
+                    complete: function() {
+                        $('#sendBtn').prop('disabled', !fileUploaded);
+                        $('#sendBtn').html('Send Messages');
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>
+{% endblock %} 

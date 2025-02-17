@@ -1,0 +1,11 @@
+Flask==2.3.3
+Flask-SQLAlchemy==3.1.1
+Flask-Login==0.6.2
+selenium==4.15.2
+pandas>=2.2.0
+python-dotenv==1.0.0
+Werkzeug==2.3.7
+webdriver_manager==4.0.1
+gunicorn==21.2.0
+cryptography==41.0.4
+openpyxl>=3.1.2 
