@@ -75,10 +75,10 @@ python app.py
 
 Feel free to submit issues and enhancement requests!
 
-## License
+## Architecture Diagram
+<img width="1020" alt="Screenshot 2025-05-17 at 11 56 42" src="https://github.com/user-attachments/assets/1249ef7c-f915-488a-bcc7-0fc27c03c559" />
 
-[Your chosen license]
 
 ## Support
 
-For support, please [contact details] 
+For support, please contact me rushichinna007@gmail.com
